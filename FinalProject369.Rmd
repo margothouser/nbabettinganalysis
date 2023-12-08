@@ -1,0 +1,307 @@
+---
+title: "NBA Sports Betting Analysis"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: 
+      bootswatch: zephyr
+    orientation: columns
+    vertical_layout: fill
+    source_code: embed
+---
+
+<style>
+.chart-title {  /* chart_title  */
+   font-size: 16px;
+  }
+body{ /* Normal  */
+      font-size: 14px;
+  }
+</style>
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(pacman)
+
+p_load(tidyverse, maps, viridis, ggplot2, plotly, htmltab, readr, leaflet, scales, plyr, reshape2, ggcorrplot, gridExtra)
+```
+
+Introduction
+===
+
+Column {data-width = 500} 
+---
+
+### A Brief History & Background Information
+
+In 1931, Nevada becomes the first place in the United States where
+gambling and betting on sports is legal. It remains the only place to do
+so for decades. In 1975, the first true "sportsbook casino" is built in Las Vegas.
+In 2018, the United States Supreme Court ruled that each state can freely establish their own sports gambling laws. Delaware stepped up first, joining Nevada, and by the end of the year, so did New Jersey, Rhode Island, Mississippi, West Virginia, New Mexico, Arkansas, and Pennsylvania. Also in 2018, popular online sportsbook DraftKings establishes itself in New Jersey. At the time, DraftKings was the first online sportsbook outside of Nevada. Currently, at time of writing, sports betting is legal with regulated industries in thirty-six states and Washington D.C. Two more states have anticipated launches in 2024 with five more reportedly close behind.
+Popular online sportsbooks across the country include DraftKings, FanDuel, BetMGM, and Bet365.
+
+### Why Analyze?
+
+The idea behind this data set is to discover any trends between pre-game betting values, such as moneylines or spreads, and overall outcome of the game, like player points or winning team.
+
+Column {data-width = 500} 
+---
+
+### Goals
+
+The goal of this project is to explore the connection, if such exists, between a 
+pre-game bet placements and the outcome of the game. Analyzing this data and finding a trend could produce better results when placing a bet on a basketball game.
+and more success for the better. I believe this is an extremely topical discussion and exploration because sports betting is becoming increasingly legal and popular across the United States.
+
+Questions this project aims to solve:
+
+  - 1 How does the moneyline affect the final score/outcome of the game?
+  
+  - 2 How does the spread affect the final score/outcome of the game?
+  
+  - 3 Do the spread and moneyline correlate?
+  
+  - 4 Does the team that wins the tipoff win, more often?
+  
+  - 5 Does the team who makes the first basket win, more often?
+
+
+Data Introduction
+===
+
+Column {.tabset data-width=550}
+---
+
+### Player Data
+
+```{r}
+playerdata <- read.csv("C:/Users/margo/OneDrive/Documents/MTH 369/nbabettinglines/nba_all_players_2021-22.csv")
+teamdata <- read.csv("C:/Users/margo/OneDrive/Documents/MTH 369/nbabettinglines/teamdata.csv")
+
+gamelogs2122 <- read.csv("C:/Users/margo/OneDrive/Documents/MTH 369/nbabettinglines/nba_gamelogs_2021-22.csv")
+
+##odds1212 <- read.csv("C:/Users/margo/OneDrive/Documents/MTH 369/nbabettinglines/odds_fpts.csv")
+##teamodds1212 <- read.csv("C:/Users/margo/OneDrive/Documents/MTH 369/nbabettinglines/odds_fpts_team.csv")
+
+ftts1212 <- read.csv("C:/Users/margo/OneDrive/Documents/MTH 369/nbabettinglines/odds_ftts.csv")
+
+outputfpts <- read.csv("C:/Users/margo/OneDrive/Documents/MTH 369/nbabettinglines/output_fpts.csv")
+outputftts <- read.csv("C:/Users/margo/OneDrive/Documents/MTH 369/nbabettinglines/output_ftts.csv")
+
+outputwintip <- read.csv("C:/Users/margo/OneDrive/Documents/MTH 369/nbabettinglines/output_win_tip.csv")
+
+samplemoneyline <- read.csv("C:/Users/margo/OneDrive/Documents/MTH 369/nbabettinglines/nba_20221018_moneyline.csv")
+
+samplespread <- read.csv("C:/Users/margo/OneDrive/Documents/MTH 369/nbabettinglines/nba_20221018_spread.csv")
+
+moneylines <- read.csv("C:/Users/margo/OneDrive/Documents/MTH 369/nbabettinglines/allmoneylines.csv")
+```
+
+```{r}
+playerdata <- playerdata[ , names(playerdata) %in% c("PLAYER_NAME", "TEAM_ABBREVIATION", "AGE", "PLAYER_HEIGHT_INCHES", "PLAYER_WEIGHT", "GP", "PTS", "REB", "AST", "NET_RATING", "OREB_PCT", "DREB_PCT", "USG_PCT", "TS_PCT", "AST_PCT", "SEASON_YEAR")]
+
+teamdata <- teamdata[ , names(teamdata) %in% c("SEASON_YEAR", "TEAM_CITY", "TEAM_NAME", "TEAM_ABBREVIATION", "TEAM_CONFERENCE", "TEAM_DIVISION", "MIN_YEAR", "MAX_YEAR", "TEAM_FULL_NAME")]
+
+samplemoneyline <- samplemoneyline[ , names(samplemoneyline) %in% c("game_id", "Date", "bet_type", "away_Team", "home_Team", "away_line", "home_line", "away_outcome", "home_outcome")]
+
+samplespread <- samplespread[ , names(samplespread) %in% c("game_id", "Date", "bet_type", "away_Team", "home_Team", "away_line", "home_line")]
+
+moneylines <- moneylines[ , names(moneylines) %in% c("game_id", "Date", "bet_type", "away_Team", "home_Team", "away_line", "home_line", "away_outcome", "home_outcome")]
+```
+
+```{r}
+DT::datatable(playerdata, rownames = FALSE, 
+              colnames = c("Player Name", "Team Abbreviation", "Age", "Height (in.)", "Weight", "Games Played", "Points", "Rebounds", "Assists", "Net Rating", "Offensive Rebound %", "Defensive Rebound %", "Usage %", "Total Scoring %", "Assist %", "Season"))
+```
+
+### Team Data
+```{r}
+DT::datatable(teamdata, rownames = FALSE, 
+              colnames = c("Season", "City", "Name", "Abbreviation", "Conference", "Division", "Min Year", "Max Year", "Team Full Name"))
+```
+
+### Moneyline Example
+```{r}
+DT::datatable(samplemoneyline, rownames = FALSE, 
+              colnames = c("Teams", "Date", "Bet Type", "Away Team", "Home Team", "Away Line", "Home Line", "Away Team Outcome", "Home Team Outcome"))
+```
+
+### Spread Example
+```{r}
+DT::datatable(samplespread, rownames = FALSE, 
+              colnames = c("Teams", "Date", "Bet Type", "Away Team", "Home Team", "Away Line", "Home Line"))
+```
+
+### Variable Descriptions
+
+**Player Data**
+
+Player Name: Name of NBA player
+
+Team Abbreviation: A unique three letter code that defines the team name
+
+Age: Age of player, in years
+
+Height: Height of player, in inches
+
+Weight: Weight of player, in pounds
+
+Games Played: How many games this player has played in over the course of the entire NBA season
+
+Points: How many total points this player scored across the entire season
+
+Rebounds: How many total rebounds this player accumulated over the season
+
+Assists: How many total assists this player had over the entire season
+
+Net Rating: 
+
+Offensive Rebound %:
+
+Defensive Rebound %:
+
+Usage %:
+
+Total Scoring %:
+
+Assist %:
+
+Season: Years that the basketball games were played
+
+
+**Team Data**
+
+Season: Years that the basketball games were played
+
+City: The city in which the team plays in or near
+
+Name: The mascot or team descriptor
+
+Abbreviation: A unique three letter code that defines the team name
+
+Conference: East or West, a location based descriptor that separates the teams into two groups
+
+Division: blank, a more specific location based descriptor that divides each conference into
+
+Min Year: The first year that the team participated in the NBA
+
+Max Year: The most recent year that the team participated in the NBA
+
+
+**Moneyline Example**
+
+Teams: In a x_y format, each variable is a team abbreviation, describing who played the game
+
+Date: In a YYYYMMDD format, the date in which the game took place
+
+Bet Type: The type of bet being tracked (in this case, moneyline)
+
+Away Team: The team in which is the visitor
+
+Home Team: The team that is hosting the game in their city and arena
+
+Away Line: 
+
+Home Line:
+
+
+**Spread Example**
+
+Teams: In a x_y format, each variable is a team abbreviation, describing who played the game
+
+Date: In a YYYYMMDD format, the date in which the game took place
+
+Bet Type: The type of bet being tracked (in this case, spread)
+
+Away Team: The team in which is the visitor
+
+Home Team: The team that is hosting the game in their city and arena
+
+Away Line: 
+
+Home Line:
+
+
+Sports Betting Basics
+===
+
+Column {.tabset data-width=550}
+---
+
+### Moneyline, Spread, etc.
+
+explanations go here
+
+
+Graphical Displays 1
+===
+
+Column {.tabset data-width=550}
+---
+
+### Moneylines
+
+```{r, figures-side, fig.show="hold", out.width="50%"}
+par(mfrow = c(2,2))
+
+ggplot(moneylines, aes(x = away_line)) + geom_histogram(bins = 20, fill = "cornflowerblue") + labs(title = "Distribution of Away Moneylines", x = "Away Line", y = "Count")
+
+ggplot(moneylines, aes(x = home_line)) + geom_histogram(bins = 25, fill = "cornflowerblue") + labs(title = "Distribution of Home Moneylines", x = "Home Line", y = "Count")
+
+ggplot(moneylines, aes(x = as.factor(away_outcome), y = away_line)) + 
+    geom_boxplot(fill = "royalblue1", alpha = 0.5) + labs(title = "Away Moneyline vs Outcome", x = "Win or Loss", y = "Moneyline")
+
+ggplot(moneylines, aes(x = as.factor(home_outcome), y = home_line)) + 
+    geom_boxplot(fill = "royalblue1", alpha = 0.5) + labs(title = "Home Moneyline vs Outcome", x = "Win or Loss", y = "Moneyline")
+```
+
+### Spreads
+
+
+
+### Moneyline vs Spread?
+find linear relationship or not?
+
+
+
+### Win Tip
+
+
+
+### Score First
+
+
+
+Regression / Modeling
+===
+
+Column {.tabset data-width=550}
+---
+
+### tab title
+
+
+Analysis / Displays 2
+===
+
+Column {.tabset data-width=550}
+---
+
+### tab title
+
+
+Conclusion
+===
+
+Column {.tabset data-width=550}
+---
+
+### tab title
+
+
+Author
+===
+
+Column {.tabset data-width=550}
+---
+
+### About the Author
